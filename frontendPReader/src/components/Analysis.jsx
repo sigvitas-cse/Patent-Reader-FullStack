@@ -3,12 +3,15 @@ import "../Analysis.css";
 import { useNavigate } from "react-router-dom";
 import PizZip from "pizzip";
 import { saveAs } from "file-saver";
+import { useEffect } from "react";
 
 const BACKEND_URL =import.meta.env.VITE_API_URL;
 console.log("Backend URL:", BACKEND_URL); // Debugging
 
 function Analysis() {
   const [fileName, setFileName] = useState("Not Selected");
+
+  //Word Counts
   const [crossWord, setCrossWord] = useState("Section Not Found");
   const [fieldWord, setFieldWord] = useState("Section Not found");
   const [backgroundWord, setBackgroundWord] = useState("Section Not found");
@@ -40,6 +43,7 @@ function Analysis() {
   const [showSummary, setShowSummary] = useState(false);
   const [fileFound, setFileFound] = useState(false);
   const [showParagraphSummary, setShowParagraphSummary] = useState(false);
+  const [totalWordC, setTotalWordC] = useState(null);
 
   // Paragraph counts
   const [crossParagraphCount, setCrossParagraphCount] = useState(0);
@@ -66,6 +70,32 @@ function Analysis() {
   const [isAbstractHovered, setIsAbstractHovered] = useState(false);
   const [showIndependentClaim, setShowIndependentClaim] = useState(false);
   const [showDependentClaim, setShowDependentClaim] = useState(false);
+
+  //calculating total word count
+  useEffect(() => {
+    const totalWordCount = [
+      fieldWord,
+      crossWord,
+      summaryWord,
+      abstractWord,
+      backgroundWord,
+      detaDesWord,
+      claimedWord,
+    ];
+  
+    setTotalWordC(() => {
+      const total = totalWordCount.reduce((acc, word) => acc + word, 0);
+      return total;
+    });
+  }, [
+    fieldWord,
+    crossWord,
+    summaryWord,
+    abstractWord,
+    backgroundWord,
+    detaDesWord,
+    claimedWord,
+  ]);
 
   // Word limits for sections
   const abstractWordLimit = 150;
@@ -123,6 +153,8 @@ function Analysis() {
   ];
 
   const navigate = useNavigate();
+
+  let totalWordCount=[];
 
   // Handle radio button changes
   const handleRadioChange = (event) => {
@@ -187,6 +219,8 @@ function Analysis() {
       }
 
       const data = await response.json();
+      console.log("API response", data);
+      
 
       // Update state with backend response
       setFileName(data.fileName);
@@ -217,6 +251,16 @@ function Analysis() {
       setDependentClaimLists(data.dependentClaimLists);
       setSectionData(data.sectionData);
       setFileContent(""); // File content is not sent from backend to reduce payload size
+      
+      
+      // console.log("inside debugger");
+      // const totalWordCount = [fieldWord, crossWord, summaryWord, abstractWord, backgroundWord, detaDesWord, claimedWord];
+      
+      // setTotalWordC(() => {
+      //   const total = totalWordCount.reduce((acc, word) => acc + word, 0);
+      //   return total;
+      // });
+      
     } catch (error) {
       setErrorMessage("Error processing the file: " + error.message);
     }
@@ -511,7 +555,7 @@ function Analysis() {
                 </tr>
                 <tr>
                   <td>Total word count</td>
-                  <td>{wordCount}</td>
+                  <td>{totalWordC}</td>
                 </tr>
                 <tr>
                   <td>Total character count</td>

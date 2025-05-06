@@ -44,7 +44,7 @@ const Mannual = () => {
   };
   // to handle the submit function
   const handleSubmit = (event) => {
-    debugger;
+    ;
     event.preventDefault();
     const trimmedValues = inputValues.map((value) => value.trim());
 
@@ -72,7 +72,6 @@ const Mannual = () => {
     setMwords(text.split(/\s+/).filter(Boolean).length);
 
     for (let i = 0; i < trimmedValues.length; i++) {
-      debugger;
       const currentSectionTitle = trimmedValues[i];
       const nextSectionTitle = trimmedValues[i + 1];
 
@@ -90,7 +89,7 @@ const Mannual = () => {
         );
         const wordsForSection = filterSectionText.split(/\s+/).filter(Boolean);
         const MwordCount = wordsForSection.length;
-        debugger
+        
         totalWordsCounts.push({
           sectionTitle: currentSectionTitle,
           wordCount: MwordCount,
@@ -106,7 +105,7 @@ const Mannual = () => {
               /(?:FIG(?:URE)?)\.?[-\s]?(?:\d+|[IVXLCDM]+)[A-Z]?(?:\([\w\s]+\))?\b/gi;
             const matches = drwingSection.match(imageRegex1);
             const uniqueMatches = [...new Set(matches)];
-            debugger;
+            ;
             const matchesWithoutanyWord = uniqueMatches.filter(
               (match) =>
                 !/\bfigured\b/i.test(match) && !/\bfiguring\b/i.test(match)
@@ -131,7 +130,7 @@ const Mannual = () => {
         const claimWord = new RegExp("claim", "i");
 
         totalWordsCounts.forEach(item => {
-          debugger
+          
           if (claimWord.test(item.sectionTitle)) {
             const claimsection = item.sectionWords
             const claimsection1 = claimsection.replace(
@@ -202,7 +201,7 @@ const Mannual = () => {
     reader.onload = async (e) => {
       const content = e.target.result;
       try {
-        debugger;
+        ;
         const result = await mammoth.extractRawText({ arrayBuffer: content });
         setText(result.value);
         setMfileContent(result.value);
