@@ -2,11 +2,34 @@ const express = require("express");
 const multer = require("multer");
 const mammoth = require("mammoth");
 const cors = require("cors");
+const swaggerUi = require("swagger-ui-express");
+const swaggerJsdoc = require("swagger-jsdoc");
 
 const app = express();
 const port = 5000;
 
-// Configure CORS to allow requests from the frontend
+// Swagger setup
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.3",
+    info: {
+      title: "Patent Document Processing API",
+      description: "API for processing .docx files and extracting patent-related metadata",
+      version: "1.0.0",
+    },
+    servers: [
+      {
+        url: "[patent reader API]",
+        description: "Local development server",
+      },
+    ],
+  },
+  apis: [__filename],
+};
+const swaggerSpec = swaggerJsdoc(swaggerOptions);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Existing middleware
 app.use(cors());
 app.use(express.json());
 
@@ -31,14 +54,157 @@ function escapeRegExp(string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Endpoint to handle file upload and processing
+// Function to count paragraphs
+function countParagraphs(sectionText) {
+  // First, try counting paragraph numbers ([0001], [0002], etc.)
+  const paragraphNumbers = sectionText.match(/\[\d+\]/g);
+  if (paragraphNumbers && paragraphNumbers.length > 0) {
+    return paragraphNumbers.length;
+  }
+  // Fallback: Split by two or more newlines for paragraphs
+  return sectionText
+    .replace(/\n{2,}/g, "\n\n") // Normalize multiple newlines
+    .split("\n\n")
+    .filter((para) => para.trim() !== "").length;
+}
+
+// Endpoint with JSDoc for Swagger documentation
+/**
+ * @swagger
+ * /upload:
+ *   post:
+ *     summary: Upload and process a .docx file
+ *     description: Accepts a .docx file and extracts metadata such as title, word counts, and section details.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: The .docx file to process (max 10MB)
+ *             required:
+ *               - file
+ *     responses:
+ *       200:
+ *         description: Successful response with extracted metadata
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 fileName:
+ *                   type: string
+ *                 modifiedTitle:
+ *                   type: string
+ *                 titleChar:
+ *                   type: integer
+ *                 wordCount:
+ *                   type: integer
+ *                 sentenceCount:
+ *                   type: integer
+ *                 lineCount:
+ *                   type: integer
+ *                 crossWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 crossParagraphCount:
+ *                   type: integer
+ *                 fieldWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 backgroundWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 backgroundParagraphCount:
+ *                   type: integer
+ *                 summaryWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 summaryParagraphCount:
+ *                   type: integer
+ *                 drofDraWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 drawingDParagraphCount:
+ *                   type: integer
+ *                 detaDesWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 detailedDescriptionPCount:
+ *                   type: integer
+ *                 claimedWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 abstractWord:
+ *                   oneOf:
+ *                     - type: integer
+ *                     - type: string
+ *                 abstractPCount:
+ *                   type: integer
+ *                 imgCount:
+ *                   type: integer
+ *                 total:
+ *                   type: integer
+ *                 independent:
+ *                   type: integer
+ *                 dependent:
+ *                   type: integer
+ *                 independentClaimLists:
+ *                   type: string
+ *                 dependentClaimLists:
+ *                   type: string
+ *                 sectionData:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       sName:
+ *                         type: string
+ *                       sCount:
+ *                         type: integer
+ *                       sChar:
+ *                         type: integer
+ *                       sSent:
+ *                         type: integer
+ *                       sLine:
+ *                         type: integer
+ *                       sParagraphCount:
+ *                         type: integer
+ *       400:
+ *         description: Bad request (e.g., invalid file type or empty file)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Server error during file processing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     // Check if file is present
     if (!req.file || !req.file.buffer) {
-      return res
-        .status(400)
-        .json({ error: "No file uploaded or file is empty." });
+      return res.status(400).json({ error: "No file uploaded or file is empty." });
     }
 
     // Validate file size
@@ -55,9 +221,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
     // Validate extracted text
     if (!text || text.trim() === "") {
-      return res
-        .status(400)
-        .json({ error: "No text could be extracted from the file." });
+      return res.status(400).json({ error: "No text could be extracted from the file." });
     }
 
     // Initialize response data
@@ -83,7 +247,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       detaDesWord: "Section Not Found",
       detailedDescriptionPCount: 0,
       claimedWord: "Section Not Found",
-      abstractWord: "Section Not Found",
+      abstractWord: "Section Not found",
       abstractPCount: 0,
       imgCount: 0,
       total: 0,
@@ -119,6 +283,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const crosssec = crossregex.exec(text);
     if (crosssec) {
       let crosssection = crosssec[1].replace(/^\s*[A-Za-z]?\s*\n*/, "").trim();
+      responseData.crossParagraphCount = countParagraphs(crosssection);
       const filteredContent = crosssection.replace(
         /\[\d+\]|\b(?:[1-4]|[6-9])?\d{1,}(?:(?<!\[\d+)\b5\b)?\b/g,
         ""
@@ -128,9 +293,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         .split(/\s+/)
         .filter(Boolean);
       responseData.crossWord = words.length;
-      responseData.crossParagraphCount = filteredContent
-        .split("\n")
-        .filter((line) => line.trim() !== "").length;
     }
 
     // Extract Field section
@@ -150,14 +312,13 @@ app.post("/upload", upload.single("file"), async (req, res) => {
         .split("\n")
         .filter((line) => line.trim() !== "").length;
       responseData.fieldWord = words.length;
-      const fi = fieldsec[0].match(/^(.*?)(?=\n|$)/);
-      const fi1 = fi[1].trim();
       responseData.sectionData.push({
-        sName: fi1,
+        sName: fieldsec[0].match(/^(.*?)(?=\n|$)/)[1].trim(),
         sCount: words.length,
         sChar: fieldCharCount,
         sSent: fieldSentCount,
         sLine: fieldlineCount,
+        sParagraphCount: countParagraphs(fieldsection),
       });
     }
 
@@ -173,12 +334,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       );
       const words = filteredContent.split(/\s+/).filter(Boolean);
       responseData.backgroundWord = words.length;
-      responseData.backgroundParagraphCount = filteredContent
-        .split("\n")
-        .filter((line) => line.trim() !== "").length;
+      responseData.backgroundParagraphCount = countParagraphs(backgrdsection);
       const ba = backgrdsec[0].match(/^(.*?)(?=\n|$)/);
       const ba1 = ba[1].trim();
-      responseData.sectionData.push({ sName: ba1, sCount: words.length });
+      responseData.sectionData.push({
+        sName: ba1,
+        sCount: words.length,
+        sParagraphCount: countParagraphs(backgrdsection),
+      });
     }
 
     // Extract Summary section
@@ -193,12 +356,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       );
       const words = filteredContent.split(/\s+/).filter(Boolean);
       responseData.summaryWord = words.length;
-      responseData.summaryParagraphCount = filteredContent
-        .split("\n")
-        .filter((line) => line.trim() !== "").length;
+      responseData.summaryParagraphCount = countParagraphs(summsection);
       const su = summsec[0].match(/^(.*?)(?=\n|$)/);
       const su1 = su[1].trim();
-      responseData.sectionData.push({ sName: su1, sCount: words.length });
+      responseData.sectionData.push({
+        sName: su1,
+        sCount: words.length,
+        sParagraphCount: countParagraphs(summsection),
+      });
     }
 
     // Extract Description of Drawings section
@@ -213,42 +378,36 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       );
       const words = filteredContent.split(/\s+/).filter(Boolean);
       responseData.drofDraWord = words.length;
-      responseData.drawingDParagraphCount = filteredContent
-        .split("\n")
-        .filter((line) => line.trim() !== "").length;
+      responseData.drawingDParagraphCount = countParagraphs(dodsection);
       const dd = dodsec[0].match(/^(.*?)(?=\n|$)/);
       const dd1 = dd[1].trim();
-      responseData.sectionData.push({ sName: dd1, sCount: words.length });
+      responseData.sectionData.push({
+        sName: dd1,
+        sCount: words.length,
+        sParagraphCount: countParagraphs(dodsection),
+      });
     }
 
     // Extract Detailed Description
     const detDesregex =
       /(DETAILED DESCRIPTION\s*)([\s\S]*?)(?=\s*(WHAT IS CLAIMED IS|CLAIMS\s*\d+|$))/gi;
     const detDessec = detDesregex.exec(text);
-    // console.log("detailed description", detDessec);
-    
     if (detDessec) {
-      const detDessection = detDessec[2]; // Use 2nd capture group
-      // Remove citations (e.g., [0036]) and numbers
+      const detDessection = detDessec[2];
       const filteredContent = detDessection
-        .replace(/\[\d+\]\s*/g, "") // Remove [0001], [0002], etc.
-        .replace(/\b\d+\b/g, "") // Remove standalone numbers
-        .replace(/\s+/g, " ") // Collapse whitespace
+        .replace(/\[\d+\]\s*/g, "")
+        .replace(/\b\d+\b/g, "")
+        .replace(/\s+/g, " ")
         .trim();
-
-      // Split words (handles hyphens, apostrophes, Unicode spaces)
       const words = filteredContent
         .split(/[\s\u200B-\u200D\uFEFF]+/)
         .filter((word) => word.length > 0 && !/^\d+$/.test(word));
-
-      // Update response
       responseData.detaDesWord = words.length;
-      responseData.detailedDescriptionPCount = filteredContent
-        .split("\n")
-        .filter((line) => line.trim() !== "").length;
+      responseData.detailedDescriptionPCount = countParagraphs(detDessection);
       responseData.sectionData.push({
         sName: "DETAILED DESCRIPTION",
         sCount: words.length,
+        sParagraphCount: countParagraphs(detDessection),
       });
     }
 
@@ -256,8 +415,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const claimregex =
       /(?:What is claimed is|WHAT IS CLAIMED IS)([\s\S]*?)(?:\babstract\b|\bABSTRACT\b|\bABSTRACT OF THE DISCLOSURE\b|Related Applications|Cross-reference to related application|CROSS-REFERENCE TO RELATED APPLICATION|FIELD|Field|BACKGROUND|SUMMARY|$)/i;
     const claimsec = claimregex.exec(text);
-    console.log("Claim section", claimsec);
-    
     if (claimsec) {
       const claimsection = claimsec[1].replace(/what is claimed is:/i, "");
       const linesa = claimsection
@@ -308,11 +465,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const abstractregex =
       /(?: Abstract|ABSTRACT|Abstract of the Disclosure)\s*([\s\S]*?)(?:What is claimed is|Claims|CLAIMS|CROSS-REFERENCE |cross-reference to related application|field|background|summary|description of the drawing|$)/i;
     const abssec = abstractregex.exec(text);
-    // console.log("abstract text", abssec);
-
     if (abssec) {
-      console.log("inside abstract section");
-
       let abssection = abssec[1].trim();
       const unwantedWords = ["OF", "THE", "DISCLOSURE"];
       abssection = abssection
@@ -328,12 +481,14 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       );
       const words = filteredContent.split(/\s+/).filter(Boolean);
       responseData.abstractWord = words.length;
-      responseData.abstractPCount = filteredContent
-        .split("\n")
-        .filter((line) => line.trim() !== "").length;
+      responseData.abstractPCount = countParagraphs(abssection);
       const ab = abssec[0].match(/^(.*?)(?=\n|$)/);
       const ab1 = ab ? ab[1].trim() : "Abstract";
-      responseData.sectionData.push({ sName: ab1, sCount: words.length });
+      responseData.sectionData.push({
+        sName: ab1,
+        sCount: words.length,
+        sParagraphCount: countParagraphs(abssection),
+      });
     }
 
     // Count figures
@@ -363,9 +518,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     res.json(responseData);
   } catch (error) {
     console.error("Error processing file:", error.message);
-    res
-      .status(500)
-      .json({ error: `Error processing the .docx file: ${error.message}` });
+    res.status(500).json({ error: `Error processing the .docx file: ${error.message}` });
   }
 });
 
@@ -381,6 +534,7 @@ app.use((err, req, res, next) => {
 
 // Start the server
 app.listen(port, () => {
-  console.log(`Server running at http://localhost:${port}`);
+  console.log(`Server running at http://localhost:5000`);
+  console.log(`Swagger UI available at http://localhost:5000/api-docs`);
 });
 
