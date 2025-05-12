@@ -2,6 +2,8 @@ import React from "react";
 import "./App.css";
 import Analysis from "./components/Analysis";
 import Mannual from "./components/Mannual";
+import Profanity from "./components/Profanity";
+// import Home from "./components/Home";
 import {
   BrowserRouter as Router,
   Route,
@@ -17,8 +19,10 @@ function App() {
       <div>
         <BrowserRouter>
           <Routes>
-            <Route exact path="/" element={<Analysis />} />
-            <Route exact path="/mannual" element={<Mannual />} />
+            {/* <Route path="/" element={<Home />} /> */}
+            <Route path="/" element={<Analysis />} />
+            <Route path="/profanity" element={<Profanity />} />
+            <Route path="/mannual" element={<Mannual />} />
           </Routes>
         </BrowserRouter>
       </div>

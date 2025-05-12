@@ -14,8 +14,9 @@ const swaggerOptions = {
     openapi: "3.0.3",
     info: {
       title: "Patent Document Processing API",
-      description: "API for processing .docx files and extracting patent-related metadata",
-      version: "1.0.0",
+      description:
+        "API for processing .docx files and extracting patent-related metadata",
+      version: "1.0.1",
     },
     servers: [
       {
@@ -27,6 +28,43 @@ const swaggerOptions = {
   apis: [__filename],
 };
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
+
+// Predefined words to search for and their replacement options
+const predefinedWords = {
+  Above: ["Surpassing", "Beyond"],
+  "Adapted For": ["Altered for", "Modified for"],
+  "Adapted To": ["Made adjustments to", "Modified to"],
+  All: ["The total", "Every single"],
+  Always: ["Perpetually", "Invariably"],
+  Allow: ["Permit", "Grant"],
+  Appropriately: ["Accordingly", "Fittingly"],
+  Authoritative: ["Attested", "Authenticated"],
+  Approximate: ["Closer", "Almost"],
+  Around: ["On all sides", "Throughout"],
+  Below: ["Less than", "Lower than"],
+  Big: ["Oversize", "Hefty"],
+  Best: ["Perfect", "Ace", "Incomparable"],
+  Biggest: ["Largest", "Huge"],
+  Bigger: ["Greater", "Heftier"],
+  "Black Hat": ["Cybercriminal", "Cracker"],
+  But: ["Although", "In spite"],
+  "By Necessity": ["Obligatory", "Inescapable"],
+  "Black List": ["Ban list", "Prohibited list"],
+  Broadest: ["Spacious", "Widespread"],
+  Certain: ["Undoubtful", "Assertively"],
+  Certainly: ["Exactly", "Assertively"],
+  "Characterized By": ["Defined by", "Recognised by"],
+  Chief: ["Head", "First"],
+  "Chinese Wall": ["Information Partition", "Ethical barrier"],
+  Compel: ["Enforce", "Urge"],
+  Clearly: ["Noticeably", "Undoubtedly"],
+  Completely: ["To the limit", "Fully"],
+  Compelled: ["Bound", "Forced"],
+  "Composed Of": ["Involving", "Constructed from"],
+  Compelling: ["Forcing"],
+  Every: ["each"],
+};
+
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Existing middleware
@@ -204,7 +242,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
   try {
     // Check if file is present
     if (!req.file || !req.file.buffer) {
-      return res.status(400).json({ error: "No file uploaded or file is empty." });
+      return res
+        .status(400)
+        .json({ error: "No file uploaded or file is empty." });
     }
 
     // Validate file size
@@ -221,7 +261,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
 
     // Validate extracted text
     if (!text || text.trim() === "") {
-      return res.status(400).json({ error: "No text could be extracted from the file." });
+      return res
+        .status(400)
+        .json({ error: "No text could be extracted from the file." });
     }
 
     // Initialize response data
@@ -256,7 +298,25 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       independentClaimLists: "",
       dependentClaimLists: "",
       sectionData: [],
+      predefinedWordCounts: {}
     };
+
+    // Count occurrences of predefined words
+    const predefinedWordCounts = {};
+    for (const word of Object.keys(predefinedWords)) {
+      const escaped = escapeRegExp(word);
+      const regexStr = escaped.replace(/\s+/g, "\\s+");
+      const regex = new RegExp(`\\b${regexStr}\\b`, "gi");
+      predefinedWordCounts[word] = (text.match(regex) || []).length;
+    }
+
+    // Filter to include only words with count > 0
+    const foundWords = Object.fromEntries(
+      Object.entries(predefinedWordCounts).filter(([word, count]) => count > 0)
+    );
+
+    // Add to responseData
+    responseData.predefinedWordCounts = foundWords;
 
     // Extract title
     const titleRegx =
@@ -518,7 +578,9 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     res.json(responseData);
   } catch (error) {
     console.error("Error processing file:", error.message);
-    res.status(500).json({ error: `Error processing the .docx file: ${error.message}` });
+    res
+      .status(500)
+      .json({ error: `Error processing the .docx file: ${error.message}` });
   }
 });
 
@@ -537,4 +599,3 @@ app.listen(port, () => {
   console.log(`Server running at http://localhost:5000`);
   console.log(`Swagger UI available at http://localhost:5000/api-docs`);
 });
-

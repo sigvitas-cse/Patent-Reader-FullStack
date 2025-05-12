@@ -5,7 +5,7 @@ import PizZip from "pizzip";
 import { saveAs } from "file-saver";
 import { useEffect } from "react";
 
-const BACKEND_URL =import.meta.env.VITE_API_URL;
+const BACKEND_URL = import.meta.env.VITE_API_URL;
 console.log("Backend URL:", BACKEND_URL); // Debugging
 
 function Analysis() {
@@ -70,6 +70,10 @@ function Analysis() {
   const [isAbstractHovered, setIsAbstractHovered] = useState(false);
   const [showIndependentClaim, setShowIndependentClaim] = useState(false);
   const [showDependentClaim, setShowDependentClaim] = useState(false);
+  const [highlightedContent, setHighlightedContent] = useState('');
+
+  //Profanity Words Counts
+  const [profanityWordCount, setProfanityWordCount] = useState({});
 
   //calculating total word count
   useEffect(() => {
@@ -82,7 +86,7 @@ function Analysis() {
       detaDesWord,
       claimedWord,
     ];
-  
+
     setTotalWordC(() => {
       const total = totalWordCount.reduce((acc, word) => acc + word, 0);
       return total;
@@ -104,57 +108,10 @@ function Analysis() {
 
   // Conditions for exceeding word limits
   const isAbstractExceeding = abstractWord > abstractWordLimit;
-  // const isAbackgroundExceeding = backgroundWord > backgroundWordLimit;
-  // const isSummaryExceeding = summaryWord > summaryWordLimit;
-
-  // Predefined words and replacements
-  const predefinedWords = {
-    Above: ["Surpassing", "Beyond"],
-    "Adapted For": ["Altered for", "Modified for"],
-    "Adapted To": ["Made adjustments to", "Modified to"],
-    All: ["The total", "Every single"],
-    Always: ["Perpetually", "Invariably"],
-    Allow: ["Permit", "Grant"],
-    Appropriately: ["Accordingly", "Fittingly"],
-    Authoritative: ["Attested", "Authenticated"],
-    Approximate: ["Closer", "Almost"],
-    Around: ["On all sides", "Throughout"],
-    Below: ["Less than", "Lower than"],
-    Big: ["Oversize", "Hefty"],
-    Best: ["Perfect", "Ace", "Incomparable"],
-    Biggest: ["Largest", "Huge"],
-    Bigger: ["Greater", "Heftier"],
-    "Black Hat": ["Cybercriminal", "Cracker"],
-    But: ["Although", "In spite"],
-    "By Necessity": ["Obligatory", "Inescapable"],
-    "Black List": ["Ban list", "Prohibited list"],
-    Broadest: ["Spacious", "Widespread"],
-    Certain: ["Undoubtful", "Assertively"],
-    Certainly: ["Exactly", "Assertively"],
-    "Characterized By": ["Defined by", "Recognised by"],
-    Chief: ["Head", "First"],
-    "Chinese Wall": ["Information Partition", "Ethical barrier"],
-    Compel: ["Enforce", "Urge"],
-    Clearly: ["Noticeably", "Undoubtedly"],
-    Completely: ["To the limit", "Fully"],
-    Compelled: ["Bound", "Forced"],
-    "Composed Of": ["Involving", "Constructed from"],
-    Compelling: ["Forcing"],
-    Every: ["each"],
-  };
-
-  // Claim-specific terms
-  const claimSpecificTerms = [
-    "at least one",
-    "at least two",
-    "one or more",
-    "plurality of",
-    "wherein",
-  ];
 
   const navigate = useNavigate();
 
-  let totalWordCount=[];
+  let totalWordCount = [];
 
   // Handle radio button changes
   const handleRadioChange = (event) => {
@@ -176,7 +133,9 @@ function Analysis() {
   // Handle checkbox toggle for sections
   const toggleCheckbox = (sectionName) => {
     if (selectedSections.includes(sectionName)) {
-      setSelectedSections(selectedSections.filter((name) => name !== sectionName));
+      setSelectedSections(
+        selectedSections.filter((name) => name !== sectionName)
+      );
     } else {
       setSelectedSections([...selectedSections, sectionName]);
     }
@@ -220,7 +179,6 @@ function Analysis() {
 
       const data = await response.json();
       console.log("API response", data);
-      
 
       // Update state with backend response
       setFileName(data.fileName);
@@ -251,16 +209,16 @@ function Analysis() {
       setDependentClaimLists(data.dependentClaimLists);
       setSectionData(data.sectionData);
       setFileContent(""); // File content is not sent from backend to reduce payload size
-      
-      
+      setProfanityWordCount(data.predefinedWordCounts);
+      setHighlightedContent(data.highlightedContent);
+
       // console.log("inside debugger");
       // const totalWordCount = [fieldWord, crossWord, summaryWord, abstractWord, backgroundWord, detaDesWord, claimedWord];
-      
+
       // setTotalWordC(() => {
       //   const total = totalWordCount.reduce((acc, word) => acc + word, 0);
       //   return total;
       // });
-      
     } catch (error) {
       setErrorMessage("Error processing the file: " + error.message);
     }
@@ -279,8 +237,14 @@ function Analysis() {
     const colWidth1 = 25;
     const colWidth2 = 40;
     const colWidth3 = 10;
-    const header = `Predefined Words${" ".repeat(colWidth1 - "Predefined Words".length)}| Alternative Words${" ".repeat(colWidth2 - "Alternative Words".length)}| Count`;
-    const border = `${"-".repeat(colWidth1)}+${"-".repeat(colWidth2)}+${"-".repeat(colWidth3)}`;
+    const header = `Predefined Words${" ".repeat(
+      colWidth1 - "Predefined Words".length
+    )}| Alternative Words${" ".repeat(
+      colWidth2 - "Alternative Words".length
+    )}| Count`;
+    const border = `${"-".repeat(colWidth1)}+${"-".repeat(
+      colWidth2
+    )}+${"-".repeat(colWidth3)}`;
     let rows = [];
 
     for (const [word, count] of Object.entries(wordCounts)) {
@@ -315,11 +279,11 @@ function Analysis() {
     setShowClaimContent(showAnalysis ? false : showClaimContent);
   };
 
-  const handleProfanity = () => {
-    setShowProfanity((prevValue) => !prevValue);
-    setShowReplacementSelector(showProfanity ? false : showReplacementSelector);
-    setConfirmationNeeded(showProfanity ? false : confirmationNeeded);
-  };
+  // const handleProfanity = () => {
+  //   setShowProfanity((prevValue) => !prevValue);
+  //   // setShowReplacementSelector(showProfanity ? false : showReplacementSelector);
+  //   // setConfirmationNeeded(showProfanity ? false : confirmationNeeded);
+  // };
 
   const handleIndependentClaimList = () => {
     setShowIndependentClaim((prevValue) => !prevValue);
@@ -327,6 +291,16 @@ function Analysis() {
 
   const handleDependentClaimList = () => {
     setShowDependentClaim((prevValue) => !prevValue);
+  };
+
+  // In Analysis.jsx
+  const goToProfanity = () => {
+    navigate("/profanity", {
+      state: {
+        profanityWordCount,
+        fileFound,
+      },
+    });
   };
 
   return (
@@ -370,7 +344,7 @@ function Analysis() {
               ? "Close Document Analysis"
               : "View Document Analysis"}
           </button>
-          <button
+          {/* <button
             style={{
               margin: "5%",
               padding: "12px 20px",
@@ -398,7 +372,7 @@ function Analysis() {
             {showProfanity
               ? "Close Profanity Word Replacer"
               : "Profanity Word Replacer"}
-          </button>
+          </button> */}
         </>
       )}
       {errorMessage && <p className="error">{errorMessage}</p>}
@@ -611,7 +585,10 @@ function Analysis() {
       {showDrop && showAnalysis && (
         <div>
           <div>
-            <details className="custom-dropdown" style={{ marginBottom: "4%", width: "100%" }}>
+            <details
+              className="custom-dropdown"
+              style={{ marginBottom: "4%", width: "100%" }}
+            >
               <summary onClick={toggleDropdown}>Select Sections</summary>
               {isOpen && (
                 <ul className="custom-dropdown-list">
@@ -623,7 +600,9 @@ function Analysis() {
                           checked={selectedSections.includes(section.sName)}
                           onChange={() => toggleCheckbox(section.sName)}
                         />
-                        <span style={{ marginLeft: "10px" }}>{section.sName}</span>
+                        <span style={{ marginLeft: "10px" }}>
+                          {section.sName}
+                        </span>
                       </label>
                     </li>
                   ))}
@@ -632,11 +611,19 @@ function Analysis() {
             </details>
           </div>
           <div className="result">
-            <div style={{ textDecorationColor: "#0a0909", marginBottom: "2%", fontWeight: "bold" }}>
+            <div
+              style={{
+                textDecorationColor: "#0a0909",
+                marginBottom: "2%",
+                fontWeight: "bold",
+              }}
+            >
               Word Count of Selected Sections :
             </div>
             {selectedSections.map((sectionName, index) => {
-              const selectedSection = sectionData.find((section) => section.sName === sectionName);
+              const selectedSection = sectionData.find(
+                (section) => section.sName === sectionName
+              );
               return (
                 <div key={index}>
                   {`${selectedSection.sName} : `}
@@ -692,7 +679,8 @@ function Analysis() {
               paddingRight: "20px",
             }}
           >
-            File content is processed on the server. Please check section analysis.
+            File content is processed on the server. Please check section
+            analysis.
           </p>
         </div>
       )}
@@ -762,6 +750,8 @@ function Analysis() {
           <p>{error}</p>
         </div>
       )}
+      {fileFound && !showAnalysis && (
+        <div> <button onClick={goToProfanity}>Check Profanity</button></div>)}       
     </div>
   );
 }

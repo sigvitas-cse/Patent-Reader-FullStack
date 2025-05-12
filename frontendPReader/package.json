@@ -1,10 +1,10 @@
 {
   "name": "frontendpreader",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "start": "vite",
     "build": "./update-version.sh && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -15,7 +15,8 @@
     "pizzip": "^3.1.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-router-dom": "^7.5.3"
+    "react-router-dom": "^7.5.3",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
