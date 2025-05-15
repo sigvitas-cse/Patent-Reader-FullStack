@@ -1,12 +1,14 @@
 // Profanity.jsx
-import React from "react";
+import react from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import "../Analysis.css";
+import { useState } from "react";
 
 function Profanity() {
+  const [viewContent, setViewContent] = useState(false);
   const { state } = useLocation(); // Get data passed via navigation
   const navigate = useNavigate();
-  const { profanityWordCount, fileFound } = state || {}; // Destructure the passed state
+  const { profanityWordCount, fileFound, viewHighlighted } = state || {}; // Destructure the passed state
 
   // If no data is passed or file is not found, show a message
   if (!fileFound || !profanityWordCount) {
@@ -22,11 +24,18 @@ function Profanity() {
     );
   }
 
+  const handleHighlightedContent = () => {
+    setViewContent((prevValue) => !prevValue);
+  };
+
   return (
     <div className="App">
       <h1>Profanity Reporter</h1>
       <button style={{ marginBottom: "20px" }} onClick={() => navigate("/")}>
         Back to Analysis
+      </button>
+      <button onClick={handleHighlightedContent}>
+        {viewContent ? "Close Content" : "View Content"}
       </button>
       <div>
         <table className="styled-table">
@@ -45,6 +54,10 @@ function Profanity() {
             ))}
           </tbody>
         </table>
+        {viewContent && (<div
+          style={{ backgroundColor: "white", color: "black"}}
+          dangerouslySetInnerHTML={{ __html: viewHighlighted }}
+        />)}
       </div>
     </div>
   );

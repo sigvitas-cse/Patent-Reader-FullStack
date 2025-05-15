@@ -65,6 +65,32 @@ const predefinedWords = {
   Every: ["each"],
 };
 
+// const predefinedWords = [
+//   'Above',
+//   'All',
+//   'Always',
+//   'Allow',
+//   'Appropriately',
+//   'Authoritative',
+//   'Approximate',
+//   'Around',
+//   'Below',
+//   'Big',
+//   'Best',
+//   'Biggest',
+//   'But',
+//   'Broadest',
+//   'Certain',
+//   'Certainly',
+//   'Chief',
+//   'Compel',
+//   'Clearly',
+//   'Completely',
+//   'Compelled',
+//   'Compelling',
+//   'Every'
+// ];
+
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Existing middleware
@@ -258,6 +284,8 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     // Extract text using mammoth
     const result = await mammoth.extractRawText({ buffer: req.file.buffer });
     const text = result.value;
+    const result2 = await mammoth.convertToHtml({ buffer: req.file.buffer });
+    const html = result2.value;
 
     // Validate extracted text
     if (!text || text.trim() === "") {
@@ -289,7 +317,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       detaDesWord: "Section Not Found",
       detailedDescriptionPCount: 0,
       claimedWord: "Section Not Found",
-      abstractWord: "Section Not found",
+      abstractWord: "Section Not Found",
       abstractPCount: 0,
       imgCount: 0,
       total: 0,
@@ -297,9 +325,31 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       dependent: 0,
       independentClaimLists: "",
       dependentClaimLists: "",
-      sectionData: [],
-      predefinedWordCounts: {}
+      predefinedWordCounts: {},
+      highlightedContent: "",
+      extractedText:"",
+      sectionData: []
     };
+
+    responseData.extractedText=html;
+
+    // Extract keys from the object
+    const wordList = Object.keys(predefinedWords);
+
+    // Escape regex special characters and create a regex to match all predefined words
+    const escapedWords = wordList.map((word) =>
+      word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    );
+
+    const regex = new RegExp(`\\b(${escapedWords.join("|")})\\b`, "gi");
+
+    // Replace matched words with highlighted <span> tag
+    const highlightedText = html.replace(regex, (match) => {
+      return `<span style="background-color: yellow">${match}</span>`;
+    });
+
+    // Add it to your response
+    responseData.highlightedContent = highlightedText;
 
     // Count occurrences of predefined words
     const predefinedWordCounts = {};

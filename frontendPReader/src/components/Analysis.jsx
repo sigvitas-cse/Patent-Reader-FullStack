@@ -70,10 +70,11 @@ function Analysis() {
   const [isAbstractHovered, setIsAbstractHovered] = useState(false);
   const [showIndependentClaim, setShowIndependentClaim] = useState(false);
   const [showDependentClaim, setShowDependentClaim] = useState(false);
-  const [highlightedContent, setHighlightedContent] = useState('');
+  const [extractedText, setExtractedText] = useState("");
 
   //Profanity Words Counts
   const [profanityWordCount, setProfanityWordCount] = useState({});
+  const [viewHighlighted, setViewHighlighted] = useState("");
 
   //calculating total word count
   useEffect(() => {
@@ -210,7 +211,9 @@ function Analysis() {
       setSectionData(data.sectionData);
       setFileContent(""); // File content is not sent from backend to reduce payload size
       setProfanityWordCount(data.predefinedWordCounts);
-      setHighlightedContent(data.highlightedContent);
+      // setHighlightedContent(data.highlightedContent);
+      setViewHighlighted(data.highlightedContent); // Content with the profanity words highlighted
+      setExtractedText(data.extractedText);
 
       // console.log("inside debugger");
       // const totalWordCount = [fieldWord, crossWord, summaryWord, abstractWord, backgroundWord, detaDesWord, claimedWord];
@@ -299,6 +302,7 @@ function Analysis() {
       state: {
         profanityWordCount,
         fileFound,
+        viewHighlighted,
       },
     });
   };
@@ -679,8 +683,11 @@ function Analysis() {
               paddingRight: "20px",
             }}
           >
-            File content is processed on the server. Please check section
-            analysis.
+              <div
+                style={{ backgroundColor: "white", color: "black" }}
+                dangerouslySetInnerHTML={{ __html: extractedText }}
+              />
+            
           </p>
         </div>
       )}
@@ -750,8 +757,13 @@ function Analysis() {
           <p>{error}</p>
         </div>
       )}
+      {/* <div style={{backgroundColor:"white", color:"black"}}  dangerouslySetInnerHTML={{ __html: viewHighlighted }} /> */}
       {fileFound && !showAnalysis && (
-        <div> <button onClick={goToProfanity}>Check Profanity</button></div>)}       
+        <div>
+          {" "}
+          <button onClick={goToProfanity}>Check Profanity</button>
+        </div>
+      )}
     </div>
   );
 }
