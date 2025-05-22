@@ -26,7 +26,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </div>
-      <div>
+      <div className="version">
         <footer style={{ color: "black" }}>Version: {APP_VERSION}</footer>
       </div>
     </>

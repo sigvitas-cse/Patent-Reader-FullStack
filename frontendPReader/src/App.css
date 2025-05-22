@@ -40,3 +40,19 @@
 .read-the-docs {
   color: #888;
 }
+
+.version {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(255, 255, 255, 0.3); /* semi-transparent white */
+  backdrop-filter: blur(20px);                /* frosted glass effect */
+  padding: 6px 12px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1000;
+}
+

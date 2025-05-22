@@ -4,9 +4,89 @@ const mammoth = require("mammoth");
 const cors = require("cors");
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
+const PDFDocument = require("pdfkit");
+const striptags = require("striptags");
+const { Document, Packer, Paragraph, TextRun, ShadingType } = require("docx");
+const { convert: htmlToText } = require("html-to-text");
+const HTMLtoDOCX = require('html-to-docx');
+const sqlite3 = require("sqlite3").verbose();
+const { parse } = require("csv-parse");
 
+// Initialize Express
 const app = express();
 const port = 5000;
+
+// Initialize SQLite database
+const db = new sqlite3.Database("./profanity.db", (err) => {
+  if (err) {
+    console.error("Error opening database:", err.message);
+  } else {
+    console.log("Connected to SQLite database.");
+    db.run(`
+      CREATE TABLE IF NOT EXISTS profanity_list (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        profanity TEXT NOT NULL,
+        alternates TEXT NOT NULL
+      )
+    `);
+  }
+});
+
+// Default predefined words (used if no database entries exist)
+let predefinedWords = {
+  Above: ["Surpassing", "Beyond"],
+  "Adapted For": ["Altered for", "Modified for"],
+  "Adapted To": ["Made adustments to", "Modified to"],
+  All: ["The total", "Every single"],
+  Always: ["Perpetually", "Invariably"],
+  Allow: ["Permit", "Grant"],
+  Appropriately: ["Accordingly", "Fittingly"],
+  Authoritative: ["Attested", "Authenticated"],
+  Approximate: ["Closer", "Almost"],
+  Around: ["On all sides", "Throughout"],
+  Below: ["Less than", "Lower than"],
+  Big: ["Oversize", "Hefty"],
+  Best: ["Perfect", "Ace", "Incomparable"],
+  Biggest: ["Bulkiest", "Enormous"],
+  Bigger: ["Heftier", "Greater in Scale"],
+  "Black Hat": ["Cybercriminal", "Cracker"],
+  But: ["Although", "In spite"],
+  "By Necessity": ["Obligatory", "Inescapable"],
+  "Black List": ["Ban list", "Prohibited list"],
+  Broadest: ["Spacious", "Widespread"],
+  Certain: ["Undoubtful", "Assertively"],
+  Certainly: ["Exactly", "Assertively"],
+  "Characterized By": ["Defined by", "Recognised by"],
+  Chief: ["Head", "First"],
+  "Chinese Wall": ["Information Partition", "Ethical barrier"],
+  Compel: ["Enforce", "Urge"],
+  Clearly: ["Noticebly", "Undoubtedly"],
+  Completely: ["To the limit", "Fully"],
+  Compelled: ["Bound", "Forced"],
+  "Composed Of": ["Involving", "Constructed from"],
+  Compelling: ["Forcing"],
+  Compulsorily: ["By force"],
+  Compulsory: ["Obligatory", "Inescapable"],
+  Consistent: ["Even", "Uniform"],
+  Contain: ["Enclose", "Consist of"],
+  Conclusive: ["Clear", "Final"],
+  Conclusively: ["Clearly", "Finally"]
+};
+
+// Load profanity words from database on startup
+db.all("SELECT profanity, alternates FROM profanity_list", (err, rows) => {
+  if (err) {
+    console.error("Error loading profanity list:", err.message);
+    return;
+  }
+  if (rows.length > 0) {
+    predefinedWords = {};
+    rows.forEach((row) => {
+      predefinedWords[row.profanity] = row.alternates.split(",").map(s => s.trim());
+    });
+    console.log("Loaded profanity list from database:", predefinedWords);
+  }
+});
 
 // Swagger setup
 const swaggerOptions = {
@@ -20,7 +100,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "[patent reader API]",
+        url: "http://localhost:5000",
         description: "Local development server",
       },
     ],
@@ -29,85 +109,23 @@ const swaggerOptions = {
 };
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
-// Predefined words to search for and their replacement options
-const predefinedWords = {
-  Above: ["Surpassing", "Beyond"],
-  "Adapted For": ["Altered for", "Modified for"],
-  "Adapted To": ["Made adjustments to", "Modified to"],
-  All: ["The total", "Every single"],
-  Always: ["Perpetually", "Invariably"],
-  Allow: ["Permit", "Grant"],
-  Appropriately: ["Accordingly", "Fittingly"],
-  Authoritative: ["Attested", "Authenticated"],
-  Approximate: ["Closer", "Almost"],
-  Around: ["On all sides", "Throughout"],
-  Below: ["Less than", "Lower than"],
-  Big: ["Oversize", "Hefty"],
-  Best: ["Perfect", "Ace", "Incomparable"],
-  Biggest: ["Largest", "Huge"],
-  Bigger: ["Greater", "Heftier"],
-  "Black Hat": ["Cybercriminal", "Cracker"],
-  But: ["Although", "In spite"],
-  "By Necessity": ["Obligatory", "Inescapable"],
-  "Black List": ["Ban list", "Prohibited list"],
-  Broadest: ["Spacious", "Widespread"],
-  Certain: ["Undoubtful", "Assertively"],
-  Certainly: ["Exactly", "Assertively"],
-  "Characterized By": ["Defined by", "Recognised by"],
-  Chief: ["Head", "First"],
-  "Chinese Wall": ["Information Partition", "Ethical barrier"],
-  Compel: ["Enforce", "Urge"],
-  Clearly: ["Noticeably", "Undoubtedly"],
-  Completely: ["To the limit", "Fully"],
-  Compelled: ["Bound", "Forced"],
-  "Composed Of": ["Involving", "Constructed from"],
-  Compelling: ["Forcing"],
-  Every: ["each"],
-};
-
-// const predefinedWords = [
-//   'Above',
-//   'All',
-//   'Always',
-//   'Allow',
-//   'Appropriately',
-//   'Authoritative',
-//   'Approximate',
-//   'Around',
-//   'Below',
-//   'Big',
-//   'Best',
-//   'Biggest',
-//   'But',
-//   'Broadest',
-//   'Certain',
-//   'Certainly',
-//   'Chief',
-//   'Compel',
-//   'Clearly',
-//   'Completely',
-//   'Compelled',
-//   'Compelling',
-//   'Every'
-// ];
-
+// Middleware
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-
-// Existing middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
 
 // Configure multer for file uploads with validation
 const upload = multer({
   storage: multer.memoryStorage(),
   fileFilter: (req, file, cb) => {
-    if (
-      file.mimetype ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-    ) {
+    const allowedMimes = [
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "text/csv"
+    ];
+    if (allowedMimes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Only .docx files are allowed"), false);
+      cb(new Error("Only .docx and .csv files are allowed"), false);
     }
   },
   limits: { fileSize: 10 * 1024 * 1024 }, // Limit file size to 10MB
@@ -120,19 +138,151 @@ function escapeRegExp(string) {
 
 // Function to count paragraphs
 function countParagraphs(sectionText) {
-  // First, try counting paragraph numbers ([0001], [0002], etc.)
   const paragraphNumbers = sectionText.match(/\[\d+\]/g);
   if (paragraphNumbers && paragraphNumbers.length > 0) {
     return paragraphNumbers.length;
   }
-  // Fallback: Split by two or more newlines for paragraphs
   return sectionText
-    .replace(/\n{2,}/g, "\n\n") // Normalize multiple newlines
+    .replace(/\n{2,}/g, "\n\n")
     .split("\n\n")
     .filter((para) => para.trim() !== "").length;
 }
 
-// Endpoint with JSDoc for Swagger documentation
+/**
+ * @swagger
+ * /upload-profanity:
+ *   post:
+ *     summary: Upload a CSV file containing profanity words and alternates
+ *     description: Accepts a CSV file with 'Profanity' and 'Alternates' columns, stores it in the database, and updates the predefined words list.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: The CSV file containing profanity words and their alternates (max 10MB)
+ *             required:
+ *               - file
+ *     responses:
+ *       200:
+ *         description: Successful response with extracted profanity words
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 predefinedWords:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: array
+ *                     items:
+ *                       type: string
+ *       400:
+ *         description: Bad request (e.g., invalid file type or missing columns)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Server error during file processing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
+app.post("/upload-profanity", upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: "No file uploaded or file is empty." });
+    }
+    if (req.file.mimetype !== "text/csv") {
+      return res.status(400).json({ error: "Only CSV files are allowed." });
+    }
+
+    const csvData = req.file.buffer.toString("utf-8");
+    const records = [];
+
+    // Parse CSV
+    parse(csvData, {
+      columns: true,
+      skip_empty_lines: true,
+      trim: true,
+      cast: true,
+    })
+      .on("data", (row) => {
+        records.push(row);
+      })
+      .on("end", async () => {
+        // Validate columns
+        if (records.length === 0) {
+          return res.status(400).json({ error: "CSV file is empty." });
+        }
+
+        const headers = Object.keys(records[0]).map(h => h.toLowerCase());
+        if (!headers.includes("profanity") || !headers.includes("alternates")) {
+          return res.status(400).json({ error: "CSV must contain 'Profanity' and 'Alternates' columns." });
+        }
+
+        // Clear existing database entries
+        await new Promise((resolve, reject) => {
+          db.run("DELETE FROM profanity_list", (err) => {
+            if (err) reject(err);
+            else resolve();
+          });
+        });
+
+        // Insert new records
+        const newPredefinedWords = {};
+        for (const row of records) {
+          const profanity = row.Profanity || row.profanity;
+          const alternates = row.Alternates || row.alternates;
+          if (profanity && alternates) {
+            const alternatesArray = alternates.split(",").map(s => s.trim()).filter(s => s);
+            if (alternatesArray.length > 0) {
+              newPredefinedWords[profanity] = alternatesArray;
+              await new Promise((resolve, reject) => {
+                db.run(
+                  "INSERT INTO profanity_list (profanity, alternates) VALUES (?, ?)",
+                  [profanity, alternates],
+                  (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                  }
+                );
+              });
+            }
+          }
+        }
+
+        // Update in-memory predefinedWords
+        predefinedWords = newPredefinedWords;
+
+        res.json({
+          message: "Profanity list updated successfully.",
+          predefinedWords
+        });
+      })
+      .on("error", (error) => {
+        res.status(400).json({ error: `Error parsing CSV: ${error.message}` });
+      });
+  } catch (error) {
+    console.error("Error processing profanity file:", error.message);
+    res.status(500).json({ error: `Error processing the CSV file: ${error.message}` });
+  }
+});
+
 /**
  * @swagger
  * /upload:
@@ -228,6 +378,14 @@ function countParagraphs(sectionText) {
  *                   type: string
  *                 dependentClaimLists:
  *                   type: string
+ *                 profanityWordCount:
+ *                   type: object
+ *                 highlightedContent:
+ *                   type: string
+ *                 extractedText:
+ *                   type: string
+ *                 totalProfanityCounts:
+ *                   type: integer
  *                 sectionData:
  *                   type: array
  *                   items:
@@ -266,14 +424,9 @@ function countParagraphs(sectionText) {
  */
 app.post("/upload", upload.single("file"), async (req, res) => {
   try {
-    // Check if file is present
     if (!req.file || !req.file.buffer) {
-      return res
-        .status(400)
-        .json({ error: "No file uploaded or file is empty." });
+      return res.status(400).json({ error: "No file uploaded or file is empty." });
     }
-
-    // Validate file size
     if (req.file.size === 0) {
       return res.status(400).json({ error: "Uploaded file is empty." });
     }
@@ -281,20 +434,15 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     const fileName = req.file.originalname.replace(".docx", "");
     const buffer = req.file.buffer;
 
-    // Extract text using mammoth
     const result = await mammoth.extractRawText({ buffer: req.file.buffer });
     const text = result.value;
     const result2 = await mammoth.convertToHtml({ buffer: req.file.buffer });
     const html = result2.value;
 
-    // Validate extracted text
     if (!text || text.trim() === "") {
-      return res
-        .status(400)
-        .json({ error: "No text could be extracted from the file." });
+      return res.status(400).json({ error: "No text could be extracted from the file." });
     }
 
-    // Initialize response data
     const responseData = {
       fileName,
       modifiedTitle: "Title Not found",
@@ -325,50 +473,35 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       dependent: 0,
       independentClaimLists: "",
       dependentClaimLists: "",
-      predefinedWordCounts: {},
+      profanityWordCount: {},
       highlightedContent: "",
-      extractedText:"",
+      extractedText: "",
+      totalProfanityCounts: Object.keys(predefinedWords).length,
       sectionData: []
     };
 
-    responseData.extractedText=html;
+    responseData.extractedText = html;
 
-    // Extract keys from the object
     const wordList = Object.keys(predefinedWords);
-
-    // Escape regex special characters and create a regex to match all predefined words
-    const escapedWords = wordList.map((word) =>
-      word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    );
-
+    const escapedWords = wordList.map((word) => escapeRegExp(word));
     const regex = new RegExp(`\\b(${escapedWords.join("|")})\\b`, "gi");
-
-    // Replace matched words with highlighted <span> tag
     const highlightedText = html.replace(regex, (match) => {
       return `<span style="background-color: yellow">${match}</span>`;
     });
-
-    // Add it to your response
     responseData.highlightedContent = highlightedText;
 
-    // Count occurrences of predefined words
-    const predefinedWordCounts = {};
+    const profanityWordCount = {};
     for (const word of Object.keys(predefinedWords)) {
       const escaped = escapeRegExp(word);
       const regexStr = escaped.replace(/\s+/g, "\\s+");
       const regex = new RegExp(`\\b${regexStr}\\b`, "gi");
-      predefinedWordCounts[word] = (text.match(regex) || []).length;
+      profanityWordCount[word] = (text.match(regex) || []).length;
     }
-
-    // Filter to include only words with count > 0
     const foundWords = Object.fromEntries(
-      Object.entries(predefinedWordCounts).filter(([word, count]) => count > 0)
+      Object.entries(profanityWordCount).filter(([word, count]) => count > 0)
     );
+    responseData.profanityWordCount = foundWords;
 
-    // Add to responseData
-    responseData.predefinedWordCounts = foundWords;
-
-    // Extract title
     const titleRegx =
       /([\s\S]*?)(cross-reference to related application|CROSS|Cross|technical|CROSS REFERENCE TO RELATED APPLICATIONS|What is claimed is|Claims|CLAIMS|WHAT IS CLAIMED IS|abstract|ABSTRACT|Cross-reference to related application|CROSS-REFERENCE TO RELATED APPLICATION|field|background|summary|description of the drawing|$)/i;
     const titlesec = titleRegx.exec(text);
@@ -387,7 +520,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     responseData.wordCount = wordss.length;
     responseData.titleChar = chars.length;
 
-    // Extract Cross-Reference section
     const crossregex =
       /(?:CROSS-REFERENCE TO RELATED APPLICATION|CROSS-REFERENCE TO RELATED APPLICATIONS|CROSS REFERENCE TO RELATED APPLICATION|Cross-reference to related application|Cross-Reference To Related Application|Related Applications)([\s\S]*?)(?:TECHNICAL FIELD|FIELD|Field|Background|BACKGROUND|Summary|SUMMARY|DESCRIPTION OF (?: THE) DRAWING|Description Of(?: The)? Drawing|DETAILED DESCRIPTION|WHAT IS CLAIMED IS|ABSTRACT|$)/i;
     const crosssec = crossregex.exec(text);
@@ -405,7 +537,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       responseData.crossWord = words.length;
     }
 
-    // Extract Field section
     const fieldregex =
       /(?:FIELD|TECHNICAL FIELD|FIELD OF THE INVENTION|Field|Technical Field)([\s\S]*?)(?:BACKGROUND|Background|BRIEF DESCRIPTION OF THE INVENTION|Summary|SUMMARY|DESCRIPTION OF (?: THE) DRAWING|Description of (?: the) Drawing|DETAILED DESCRIPTION|detailed description|What is claimed is|CLAIMS|Abstract|ABSTRACT|CROSS-REFERENCE TO RELATED APPLICATION|$)/i;
     const fieldsec = fieldregex.exec(text);
@@ -432,7 +563,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Extract Background section
+    //extract background
     const backgrdregex =
       /(?:background|background of the invention)([\s\S]*?)(?:summary|brief description of the invention|description of (?: the) drawings|detailed description|what is claimed is|abstract|cross-reference to related application|field|$)/i;
     const backgrdsec = backgrdregex.exec(text);
@@ -454,7 +585,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Extract Summary section
     const summregex =
       /(?:SUMMARY|BRIEF DESCRIPTION OF THE INVENTION|BRIEF SUMMARY)([\s\S]*?)(?:DESCRIPTION OF (?: THE)? DRAWINGS|BRIEF DESCRIPTION OF DRAWINGS|detailed description|what is claimed is|claims|abstract|cross-reference to related application|field|background|$)/i;
     const summsec = summregex.exec(text);
@@ -476,7 +606,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Extract Description of Drawings section
     const dodregex =
       /(?:Description of(?: the)? Drawings|DESCRIPTION OF(?: THE)? DRAWINGS)([\s\S]*?)(?:DETAILED DESCRIPTION|\nDetailed Description|DESCRIPTION OF EMBODIMENTS|DESCRIPTION OF IMPLEMENTATIONS|DETAILED DESCRIPTION OF SPECIFIC EMBODIMENTS|What is claimed is|CLAIMS|ABSTRACT|CROSS-REFERENCE TO RELATED APPLICATION|FIELD|BACKGROUND|SUMMARY|BRIEF DESCRIPTION THE INVENTION|$)/i;
     const dodsec = dodregex.exec(text);
@@ -498,7 +627,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Extract Detailed Description
     const detDesregex =
       /(DETAILED DESCRIPTION\s*)([\s\S]*?)(?=\s*(WHAT IS CLAIMED IS|CLAIMS\s*\d+|$))/gi;
     const detDessec = detDesregex.exec(text);
@@ -521,7 +649,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Extract Claims section
     const claimregex =
       /(?:What is claimed is|WHAT IS CLAIMED IS)([\s\S]*?)(?:\babstract\b|\bABSTRACT\b|\bABSTRACT OF THE DISCLOSURE\b|Related Applications|Cross-reference to related application|CROSS-REFERENCE TO RELATED APPLICATION|FIELD|Field|BACKGROUND|SUMMARY|$)/i;
     const claimsec = claimregex.exec(text);
@@ -571,7 +698,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       responseData.sectionData.push({ sName: cl1, sCount: words.length });
     }
 
-    // Extract Abstract section
     const abstractregex =
       /(?: Abstract|ABSTRACT|Abstract of the Disclosure)\s*([\s\S]*?)(?:What is claimed is|Claims|CLAIMS|CROSS-REFERENCE |cross-reference to related application|field|background|summary|description of the drawing|$)/i;
     const abssec = abstractregex.exec(text);
@@ -601,7 +727,6 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       });
     }
 
-    // Count figures
     const figRegex =
       /(?:Description of(?: the)? Drawings|DESCRIPTION OF(?: THE)? DRAWINGS)([\s\S]*?)(?:DETAILED DESCRIPTION|\nDetailed Description|DESCRIPTION OF EMBODIMENTS|DESCRIPTION OF IMPLEMENTATIONS|DETAILED DESCRIPTION OF SPECIFIC EMBODIMENTS|What is claimed is|CLAIMS|ABSTRACT|CROSS-REFERENCE TO RELATED APPLICATION|FIELD|BACKGROUND|SUMMARY|BRIEF DESCRIPTION THE INVENTION|$)/i;
     const descriptionMatches = figRegex.exec(text);
@@ -624,17 +749,86 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       responseData.imgCount = Rx1 + Rx2;
     }
 
-    // Send response
     res.json(responseData);
   } catch (error) {
     console.error("Error processing file:", error.message);
-    res
-      .status(500)
-      .json({ error: `Error processing the .docx file: ${error.message}` });
+    res.status(500).json({ error: `Error processing the .docx file: ${error.message}` });
   }
 });
 
-// Error handling middleware for multer errors
+/**
+ * @swagger
+ * /download:
+ *   post:
+ *     summary: Download the highlighted content as a DOCX file
+ *     description: Accepts the highlighted content from a processed .docx file and returns it as a downloadable DOCX file with highlighted words for matched predefined words.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               highlightedContent:
+ *                 type: string
+ *                 description: The HTML content with highlighted words from the .docx file
+ *               fileName:
+ *                 type: string
+ *                 description: The desired name for the downloaded DOCX file (without extension)
+ *             required:
+ *               - highlightedContent
+ *               - fileName
+ *     responses:
+ *       200:
+ *         description: Successful response with the downloadable DOCX file
+ *         content:
+ *           application/vnd.openxmlformats-officedocument.wordprocessingml.document:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       400:
+ *         description: Bad request (e.g., missing or invalid parameters)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: Server error during file processing
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
+app.post("/download", async (req, res) => {
+  try {
+    const { highlightedContent, fileName } = req.body;
+
+    if (!highlightedContent || !fileName) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const buffer = await HTMLtoDOCX(highlightedContent, null, {
+      table: { row: { cantSplit: true } },
+      footer: true,
+    });
+
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9-_]/g, "_");
+    res.setHeader("Content-Disposition", `attachment; filename=${sanitizedFileName}_highlighted.docx`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    res.send(buffer);
+  } catch (error) {
+    console.error("Error processing download:", error);
+    res.status(500).json({ error: "Failed to generate DOCX" });
+  }
+});
+
+// Error handling middleware
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     return res.status(400).json({ error: `Multer error: ${err.message}` });

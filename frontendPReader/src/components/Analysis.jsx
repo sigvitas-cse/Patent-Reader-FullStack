@@ -75,6 +75,7 @@ function Analysis() {
   //Profanity Words Counts
   const [profanityWordCount, setProfanityWordCount] = useState({});
   const [viewHighlighted, setViewHighlighted] = useState("");
+  const [totalProfanityCounts, setTotalProfanityCounts] = useState(null);
 
   //calculating total word count
   useEffect(() => {
@@ -86,6 +87,7 @@ function Analysis() {
       backgroundWord,
       detaDesWord,
       claimedWord,
+      profanityWordCount,
     ];
 
     setTotalWordC(() => {
@@ -210,10 +212,11 @@ function Analysis() {
       setDependentClaimLists(data.dependentClaimLists);
       setSectionData(data.sectionData);
       setFileContent(""); // File content is not sent from backend to reduce payload size
-      setProfanityWordCount(data.predefinedWordCounts);
+      setProfanityWordCount(data.profanityWordCount);
       // setHighlightedContent(data.highlightedContent);
       setViewHighlighted(data.highlightedContent); // Content with the profanity words highlighted
       setExtractedText(data.extractedText);
+      setTotalProfanityCounts(data.totalProfanityCounts);
 
       // console.log("inside debugger");
       // const totalWordCount = [fieldWord, crossWord, summaryWord, abstractWord, backgroundWord, detaDesWord, claimedWord];
@@ -227,6 +230,7 @@ function Analysis() {
     }
   };
 
+  console.log("inside Analysis", file);
   const handleSummary = () => {
     setShowSummary((prevValue) => !prevValue);
   };
@@ -302,7 +306,10 @@ function Analysis() {
       state: {
         profanityWordCount,
         fileFound,
-        viewHighlighted,
+        viewHighlighted, // Maps to highlightedContent from /upload
+        fileName,
+        totalProfanityCounts,
+        file,
       },
     });
   };
@@ -504,7 +511,6 @@ function Analysis() {
               )}
             </tbody>
           </table>
-
           <button className="summary-button" onClick={handleSummary}>
             {showSummary ? "Close the Summary" : "View Summary"}
           </button>
@@ -683,11 +689,10 @@ function Analysis() {
               paddingRight: "20px",
             }}
           >
-              <div
-                style={{ backgroundColor: "white", color: "black" }}
-                dangerouslySetInnerHTML={{ __html: extractedText }}
-              />
-            
+            <div
+              style={{ backgroundColor: "white", color: "black" }}
+              dangerouslySetInnerHTML={{ __html: extractedText }}
+            />
           </p>
         </div>
       )}
