@@ -27,9 +27,6 @@ import {
 } from "@mui/material";
 import "../Analysis.css";
 
-const BACKEND_URL = import.meta.env.VITE_API_URL;
-console.log("Backend URL:", BACKEND_URL); // Debugging
-
 // Register Chart.js components
 ChartJS.register(
   CategoryScale,
@@ -44,47 +41,44 @@ function Profanity() {
   const [viewContent, setViewContent] = useState(false);
   const [viewProfanity, setViewProfanity] = useState(false);
   const [viewMatchedWords, setViewMatchedWords] = useState(false);
-  const [fileUploaded, setFileUploaded] = useState(null);
+  const [fileuploaded, setFileUploaded] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
   const { state } = useLocation();
   const navigate = useNavigate();
   const {
     profanityWordCount,
-    fileUploadedFound,
+    fileFound,
     viewHighlighted,
-    fileUploadedName,
+    fileName,
     totalProfanityCounts,
-    file,
+    file
   } = state || {};
 
-  // Send file to backend
-  const formData = new FormData();
-  formData.append("file", selectedFile);
-
   console.log("inside Profanity", file);
+  
 
-  const handlefileUploadedChange = (event) => {
-    const selectedfileUploaded = event.target.fileUploadeds[0];
-    if (selectedfileUploaded && selectedfileUploaded.type === "text/csv") {
-      setFileUploaded(selectedfileUploaded);
+  const handleFileChange = (event) => {
+    const selectedFile = event.target.files[0];
+    if (selectedFile && selectedFile.type === "text/csv") {
+      setFileUploaded(selectedFile);
       setUploadMessage("");
     } else {
       setFileUploaded(null);
-      setUploadMessage("Please select a valid CSV fileUploaded.");
+      setUploadMessage("Please select a valid CSV file.");
     }
   };
 
   const handleUploadProfanity = async () => {
-    if (!fileUploaded) {
-      setUploadMessage("No fileUploaded selected.");
+    if (!fileuploaded) {
+      setUploadMessage("No file selected.");
       return;
     }
 
     const formData = new FormData();
-    formData.append("fileUploaded", fileUploaded);
+    formData.append("file", fileuploaded);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/upload-profanity`, {
+      const response = await fetch("http://localhost:5000/upload-profanity", {
         method: "POST",
         body: formData,
       });
@@ -93,16 +87,16 @@ function Profanity() {
       if (response.ok) {
         setUploadMessage(data.message);
         setFileUploaded(null);
-        document.querySelector('input[type="fileUploaded"]').value = null;
+        document.querySelector('input[type="file"]').value = null;
       } else {
         setUploadMessage(data.error || "Failed to upload profanity list.");
       }
     } catch (error) {
-      setUploadMessage(`Error uploading fileUploaded: ${error.message}`);
+      setUploadMessage(`Error uploading file: ${error.message}`);
     }
   };
 
-  if (!fileUploadedFound || !profanityWordCount) {
+  if (!fileFound || !profanityWordCount) {
     return (
       <Box sx={{ flexGrow: 1, p: 3 }}>
         <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
@@ -110,8 +104,8 @@ function Profanity() {
             Profanity Reporter
           </Typography>
           <Typography variant="body1" sx={{ mb: 2 }}>
-            No fileUploaded uploaded or profanity data available. Please upload
-            a fileUploaded in the Analysis page.
+            No file uploaded or profanity data available. Please upload a file
+            in the Analysis page.
           </Typography>
           <Button
             variant="contained"
@@ -121,20 +115,15 @@ function Profanity() {
             Back
           </Button>
           <Box>
-            <Typography variant="h6" gutterBottom sx={{ color: "white" }}>
+            <Typography variant="h6" gutterBottom>
               Upload Profanity List
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <input
-                type="fileUploaded"
-                accept=".csv"
-                onChange={handlefileUploadedChange}
-              />
+              <input type="file" accept=".csv" onChange={handleFileChange} />
               <Button
                 variant="contained"
                 onClick={handleUploadProfanity}
-                disabled={!fileUploaded}
-                sx={{ color: "white" }}
+                disabled={!fileuploaded}
               >
                 Upload Profanity List
               </Button>
@@ -165,10 +154,8 @@ function Profanity() {
   };
 
   const handleDownload = async () => {
-    if (!viewHighlighted || !fileUploadedName) {
-      alert(
-        "No highlighted content or fileUploaded name available for download."
-      );
+    if (!viewHighlighted || !fileName) {
+      alert("No highlighted content or file name available for download.");
       return;
     }
 
@@ -186,34 +173,34 @@ function Profanity() {
     }
 
     try {
-      const response = await fetch(`${BACKEND_URL}/download`, {
+      const response = await fetch("http://localhost:5000/download", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           highlightedContent: viewHighlighted,
-          fileUploadedName: fileUploadedName.replace(".docx", ""),
+          fileName: fileName.replace(".docx", ""),
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to download fileUploaded");
+        throw new Error(errorData.error || "Failed to download file");
       }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${fileUploadedName.replace(".docx", "")}_highlighted.docx`;
+      a.download = `${fileName.replace(".docx", "")}_highlighted.docx`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error("Error downloading fileUploaded:", error.message);
-      alert(`Error downloading fileUploaded: ${error.message}`);
+      console.error("Error downloading file:", error.message);
+      alert(`Error downloading file: ${error.message}`);
     }
   };
 
@@ -279,15 +266,11 @@ function Profanity() {
 
         <Box sx={{ mb: 3 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-            <input
-              type="fileUploaded"
-              accept=".csv"
-              onChange={handlefileUploadedChange}
-            />
+            <input type="file" accept=".csv" onChange={handleFileChange} />
             <Button
               variant="contained"
               onClick={handleUploadProfanity}
-              disabled={!fileUploaded}
+              disabled={!fileuploaded}
               color="white"
             >
               Upload Profanity List
@@ -320,9 +303,7 @@ function Profanity() {
                 onClick={handleViewMatchedWords}
                 sx={{ mb: 2 }}
               >
-                {viewMatchedWords
-                  ? "Close Matched Words"
-                  : "View Matched Words"}
+                {viewMatchedWords ? "Close Matched Words" : "View Matched Words"}
               </Button>
               <Button
                 fullWidth
