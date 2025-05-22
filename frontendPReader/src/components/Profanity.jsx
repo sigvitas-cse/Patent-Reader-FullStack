@@ -1,4 +1,3 @@
-// Profanity.jsx
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bar } from "react-chartjs-2";
@@ -36,6 +35,9 @@ ChartJS.register(
   Tooltip,
   Legend
 );
+
+const BACKEND_URL = import.meta.env.VITE_API_URL;
+console.log("Backend URL:", BACKEND_URL); // Debugging
 
 function Profanity() {
   const [viewContent, setViewContent] = useState(false);
@@ -78,7 +80,7 @@ function Profanity() {
     formData.append("file", fileuploaded);
 
     try {
-      const response = await fetch("http://localhost:5000/upload-profanity", {
+      const response = await fetch(`${BACKEND_URL}/upload-profanity`, {
         method: "POST",
         body: formData,
       });
@@ -173,7 +175,7 @@ function Profanity() {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/download", {
+      const response = await fetch(`${BACKEND_URL}/download`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
