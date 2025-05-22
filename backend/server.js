@@ -32,6 +32,7 @@ const db = new sqlite3.Database("./profanity.db", (err) => {
   }
 });
 
+
 // Default predefined words (used if no database entries exist)
 let predefinedWords = {
   Above: ["Surpassing", "Beyond"],
@@ -109,9 +110,27 @@ const swaggerOptions = {
 };
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
+const allowedOrigins = [
+  "https://patent-reader-fullstack-2.onrender.com",
+  "http://localhost:5173",
+];
+
 // Middleware
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., Postman or curl) or from allowed origins
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+}));
 app.use(express.json({ limit: "50mb" }));
 
 // Configure multer for file uploads with validation

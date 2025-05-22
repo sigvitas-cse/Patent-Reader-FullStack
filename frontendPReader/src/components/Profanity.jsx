@@ -27,6 +27,9 @@ import {
 } from "@mui/material";
 import "../Analysis.css";
 
+const BACKEND_URL = import.meta.env.VITE_API_URL;
+console.log("Backend URL:", BACKEND_URL); // Debugging
+
 // Register Chart.js components
 ChartJS.register(
   CategoryScale,
@@ -51,8 +54,12 @@ function Profanity() {
     viewHighlighted,
     fileUploadedName,
     totalProfanityCounts,
-    file
+    file,
   } = state || {};
+
+  // Send file to backend
+  const formData = new FormData();
+  formData.append("file", selectedFile);
 
   console.log("inside Profanity", file);
 
@@ -77,7 +84,7 @@ function Profanity() {
     formData.append("fileUploaded", fileUploaded);
 
     try {
-      const response = await fetch("http://localhost:5000/upload-profanity", {
+      const response = await fetch(`${BACKEND_URL}/upload-profanity`, {
         method: "POST",
         body: formData,
       });
@@ -103,8 +110,8 @@ function Profanity() {
             Profanity Reporter
           </Typography>
           <Typography variant="body1" sx={{ mb: 2 }}>
-            No fileUploaded uploaded or profanity data available. Please upload a fileUploaded
-            in the Analysis page.
+            No fileUploaded uploaded or profanity data available. Please upload
+            a fileUploaded in the Analysis page.
           </Typography>
           <Button
             variant="contained"
@@ -118,7 +125,11 @@ function Profanity() {
               Upload Profanity List
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-              <input type="fileUploaded" accept=".csv" onChange={handlefileUploadedChange} />
+              <input
+                type="fileUploaded"
+                accept=".csv"
+                onChange={handlefileUploadedChange}
+              />
               <Button
                 variant="contained"
                 onClick={handleUploadProfanity}
@@ -155,7 +166,9 @@ function Profanity() {
 
   const handleDownload = async () => {
     if (!viewHighlighted || !fileUploadedName) {
-      alert("No highlighted content or fileUploaded name available for download.");
+      alert(
+        "No highlighted content or fileUploaded name available for download."
+      );
       return;
     }
 
@@ -173,7 +186,7 @@ function Profanity() {
     }
 
     try {
-      const response = await fetch("http://localhost:5000/download", {
+      const response = await fetch(`${BACKEND_URL}/download`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -266,7 +279,11 @@ function Profanity() {
 
         <Box sx={{ mb: 3 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-            <input type="fileUploaded" accept=".csv" onChange={handlefileUploadedChange} />
+            <input
+              type="fileUploaded"
+              accept=".csv"
+              onChange={handlefileUploadedChange}
+            />
             <Button
               variant="contained"
               onClick={handleUploadProfanity}
