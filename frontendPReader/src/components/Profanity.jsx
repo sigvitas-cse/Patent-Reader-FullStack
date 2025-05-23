@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Bar } from "react-chartjs-2";
 import {
@@ -7,7 +7,7 @@ import {
   LinearScale,
   BarElement,
   Title,
-  Tooltip,
+  Tooltip as ChartTooltip,
   Legend,
 } from "chart.js";
 import {
@@ -17,14 +17,16 @@ import {
   Button,
   Box,
   Table,
-  TableBody,
-  TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  TableCell,
+  TableBody,
   Collapse,
+  Tooltip, // Material-UI Tooltip for hover
 } from "@mui/material";
 import "../Analysis.css";
+import DOMPurify from "dompurify";
 
 // Register Chart.js components
 ChartJS.register(
@@ -32,32 +34,42 @@ ChartJS.register(
   LinearScale,
   BarElement,
   Title,
-  Tooltip,
+  ChartTooltip,
   Legend
 );
 
 const BACKEND_URL = import.meta.env.VITE_API_URL;
-console.log("Backend URL:", BACKEND_URL); // Debugging
 
 function Profanity() {
   const [viewContent, setViewContent] = useState(false);
   const [viewProfanity, setViewProfanity] = useState(false);
   const [viewMatchedWords, setViewMatchedWords] = useState(false);
-  const [fileuploaded, setFileUploaded] = useState(null);
+  const [fileUploaded, setFileUploaded] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
+  const [profanityWordCount, setProfanityWordCount] = useState({});
+  const [viewHighlighted, setViewHighlighted] = useState("");
+  const [totalProfanityCounts, setTotalProfanityCounts] = useState(0);
+  const [fileName, setFileName] = useState("");
+  const [fileFound, setFileFound] = useState(false);
+  const [file, setFile] = useState(null);
+  const [predefinedWords, setPredefinedWords] = useState({}); // New state for predefinedWords
+
   const { state } = useLocation();
   const navigate = useNavigate();
-  const {
-    profanityWordCount,
-    fileFound,
-    viewHighlighted,
-    fileName,
-    totalProfanityCounts,
-    file
-  } = state || {};
 
-  console.log("inside Profanity", file);
-  
+  // Initialize state from useLocation
+  useEffect(() => {
+    if (state) {
+      console.log("Raw viewHighlighted HTML:", state.viewHighlighted);
+      setProfanityWordCount(state.profanityWordCount || {});
+      setViewHighlighted(state.viewHighlighted || "");
+      setTotalProfanityCounts(state.totalProfanityCounts || 0);
+      setFileName(state.fileName || "");
+      setFileFound(state.fileFound || false);
+      setFile(state.file || null);
+      setPredefinedWords(state.totalMatchedProfanityObject || {}); // Store predefinedWords   
+    }
+  }, [state]);
 
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
@@ -71,34 +83,66 @@ function Profanity() {
   };
 
   const handleUploadProfanity = async () => {
-    if (!fileuploaded) {
+    if (!fileUploaded) {
       setUploadMessage("No file selected.");
       return;
     }
 
     const formData = new FormData();
-    formData.append("file", fileuploaded);
+    formData.append("file", fileUploaded);
 
     try {
-      const response = await fetch(`${BACKEND_URL}/upload-profanity`, {
+      const uploadResponse = await fetch(`${BACKEND_URL}/upload-profanity`, {
         method: "POST",
         body: formData,
       });
 
-      const data = await response.json();
-      if (response.ok) {
-        setUploadMessage(data.message);
-        setFileUploaded(null);
-        document.querySelector('input[type="file"]').value = null;
-      } else {
-        setUploadMessage(data.error || "Failed to upload profanity list.");
+      const uploadData = await uploadResponse.json();
+      if (!uploadResponse.ok) {
+        setUploadMessage(uploadData.error || "Failed to upload profanity list.");
+        return;
       }
+
+      setUploadMessage(uploadData.message);
+      setFileUploaded(null);
+      document.querySelector('input[type="file"]').value = null;
+
+      if (!file && !fileName) {
+        setUploadMessage("No document available to reprocess.");
+        return;
+      }
+
+      const reprocessFormData = new FormData();
+      if (file) {
+        reprocessFormData.append("file", file);
+      } else {
+        reprocessFormData.append("fileName", fileName);
+      }
+
+      const response = await fetch(`${BACKEND_URL}/upload`, {
+        method: "POST",
+        body: reprocessFormData,
+      });
+
+      if (!response.ok) {
+        throw new Error("Error reprocessing document with new profanity list.");
+      }
+
+      const data = await response.json();
+      console.log("Reprocess API response", data);
+
+      setProfanityWordCount(data.profanityWordCount || {});
+      setViewHighlighted(data.highlightedContent || "");
+      setTotalProfanityCounts(data.totalProfanityCounts || 0);
+      setFileName(data.fileName || fileName);
+      setFileFound(true);
+      setPredefinedWords(data.predefinedWords || {}); // Update predefinedWords
     } catch (error) {
-      setUploadMessage(`Error uploading file: ${error.message}`);
+      setUploadMessage(`Error: ${error.message}`);
     }
   };
 
-  if (!fileFound || !profanityWordCount) {
+  if (!fileFound || Object.keys(profanityWordCount).length === 0) {
     return (
       <Box sx={{ flexGrow: 1, p: 3 }}>
         <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
@@ -125,7 +169,7 @@ function Profanity() {
               <Button
                 variant="contained"
                 onClick={handleUploadProfanity}
-                disabled={!fileuploaded}
+                disabled={!fileUploaded}
               >
                 Upload Profanity List
               </Button>
@@ -206,6 +250,31 @@ function Profanity() {
     }
   };
 
+  // Render highlighted content with tooltips
+  const renderHighlightedContent = () => {
+    let highlightedContent = DOMPurify.sanitize(viewHighlighted);
+    
+    // Only process words that are in profanityWordCount to avoid unnecessary replacements
+    Object.keys(profanityWordCount).forEach((word) => {
+      const regex = new RegExp(
+        `(<span style="background-color: yellow">${word}</span>)`,
+        "gi"
+      );
+      const replacements = predefinedWords[word] || ["No replacements available"];
+      highlightedContent = highlightedContent.replace(
+        regex,
+        `<span style="cursor: pointer;" title="Replacements: ${replacements.join(", ")}">$1</span>`
+      );
+    });
+
+    return (
+      <div
+        style={{ textAlign: "justify" }}
+        dangerouslySetInnerHTML={{ __html: highlightedContent }}
+      />
+    );
+  };
+
   const matchedWordsCount = Object.keys(profanityWordCount).length;
   const totalWords = totalProfanityCounts;
 
@@ -250,7 +319,7 @@ function Profanity() {
   return (
     <Box sx={{ flexGrow: 1, p: 3 }}>
       <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-        <Typography variant="h4 'p'" gutterBottom>
+        <Typography variant="h4" gutterBottom>
           Profanity Reporter
         </Typography>
         <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -272,8 +341,7 @@ function Profanity() {
             <Button
               variant="contained"
               onClick={handleUploadProfanity}
-              disabled={!fileuploaded}
-              color="white"
+              disabled={!fileUploaded}
             >
               Upload Profanity List
             </Button>
@@ -305,7 +373,9 @@ function Profanity() {
                 onClick={handleViewMatchedWords}
                 sx={{ mb: 2 }}
               >
-                {viewMatchedWords ? "Close Matched Words" : "View Matched Words"}
+                {viewMatchedWords
+                  ? "Close Matched Words"
+                  : "View Matched Words"}
               </Button>
               <Button
                 fullWidth
@@ -316,33 +386,6 @@ function Profanity() {
                 Download Highlighted Content (DOCX)
               </Button>
             </Grid>
-            {/* <Grid item xs={12}>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Word</TableCell>
-                      <TableCell>Occurrence</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.entries(profanityWordCount).map(
-                      ([word, count], index) => (
-                        <TableRow key={index}>
-                          <TableCell>{word}</TableCell>
-                          <TableCell>{count}</TableCell>
-                        </TableRow>
-                      )
-                    )}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </Grid>
-            <Grid item xs={12}>
-              <Box sx={{ maxWidth: 600, mx: "auto", mt: 2 }}>
-                <Bar data={chartData} options={chartOptions} />
-              </Box>
-            </Grid> */}
             <Grid item xs={12}>
               <Collapse in={viewMatchedWords}>
                 <Grid item xs={12}>
@@ -355,14 +398,12 @@ function Profanity() {
                         </TableRow>
                       </TableHead>
                       <TableBody>
-                        {Object.entries(profanityWordCount).map(
-                          ([word, count], index) => (
-                            <TableRow key={index}>
-                              <TableCell>{word}</TableCell>
-                              <TableCell>{count}</TableCell>
-                            </TableRow>
-                          )
-                        )}
+                        {Object.keys(profanityWordCount).map((word, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{word}</TableCell>
+                            <TableCell>{profanityWordCount[word]}</TableCell>
+                          </TableRow>
+                        ))}
                       </TableBody>
                     </Table>
                   </TableContainer>
@@ -377,7 +418,7 @@ function Profanity() {
             <Grid item xs={12}>
               <Collapse in={viewContent}>
                 <Paper sx={{ p: 2, bgcolor: "white" }}>
-                  <div dangerouslySetInnerHTML={{ __html: viewHighlighted }} />
+                  {renderHighlightedContent()}
                 </Paper>
               </Collapse>
             </Grid>

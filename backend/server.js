@@ -493,6 +493,7 @@ app.post("/upload", upload.single("file"), async (req, res) => {
       independentClaimLists: "",
       dependentClaimLists: "",
       profanityWordCount: {},
+      matchedProfanityWords: {}, // New field for matched words and their replacements
       highlightedContent: "",
       extractedText: "",
       totalProfanityCounts: Object.keys(predefinedWords).length,
@@ -510,16 +511,24 @@ app.post("/upload", upload.single("file"), async (req, res) => {
     responseData.highlightedContent = highlightedText;
 
     const profanityWordCount = {};
+    const matchedProfanityWords = {};
     for (const word of Object.keys(predefinedWords)) {
       const escaped = escapeRegExp(word);
       const regexStr = escaped.replace(/\s+/g, "\\s+");
       const regex = new RegExp(`\\b${regexStr}\\b`, "gi");
-      profanityWordCount[word] = (text.match(regex) || []).length;
+      const count = (text.match(regex) || []).length;
+      profanityWordCount[word] = count;
+      if (count > 0) {
+        matchedProfanityWords[word] = predefinedWords[word]; // Include only matched words and their replacements
+      }
     }
     const foundWords = Object.fromEntries(
       Object.entries(profanityWordCount).filter(([word, count]) => count > 0)
     );
     responseData.profanityWordCount = foundWords;
+    responseData.matchedProfanityWords = matchedProfanityWords;
+
+    // ... Rest of the existing code for processing title, sections, claims, etc. remains unchanged ...
 
     const titleRegx =
       /([\s\S]*?)(cross-reference to related application|CROSS|Cross|technical|CROSS REFERENCE TO RELATED APPLICATIONS|What is claimed is|Claims|CLAIMS|WHAT IS CLAIMED IS|abstract|ABSTRACT|Cross-reference to related application|CROSS-REFERENCE TO RELATED APPLICATION|field|background|summary|description of the drawing|$)/i;

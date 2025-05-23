@@ -10,6 +10,7 @@ console.log("Backend URL:", BACKEND_URL); // Debugging
 
 function Analysis() {
   const [fileName, setFileName] = useState("Not Selected");
+  const [isLoading, setIsLoading]=useState(false);
 
   //Word Counts
   const [crossWord, setCrossWord] = useState("Section Not Found");
@@ -76,6 +77,7 @@ function Analysis() {
   const [profanityWordCount, setProfanityWordCount] = useState({});
   const [viewHighlighted, setViewHighlighted] = useState("");
   const [totalProfanityCounts, setTotalProfanityCounts] = useState(null);
+  const [totalMatchedProfanityObject, setTotalMatchedProfanityObject] = useState({});
 
   //calculating total word count
   useEffect(() => {
@@ -171,6 +173,7 @@ function Analysis() {
     formData.append("file", selectedFile);
 
     try {
+      setIsLoading(true);
       const response = await fetch(`${BACKEND_URL}/upload`, {
         method: "POST",
         body: formData,
@@ -217,6 +220,8 @@ function Analysis() {
       setViewHighlighted(data.highlightedContent); // Content with the profanity words highlighted
       setExtractedText(data.extractedText);
       setTotalProfanityCounts(data.totalProfanityCounts);
+      setTotalMatchedProfanityObject(data.matchedProfanityWords);
+
 
       // console.log("inside debugger");
       // const totalWordCount = [fieldWord, crossWord, summaryWord, abstractWord, backgroundWord, detaDesWord, claimedWord];
@@ -227,6 +232,9 @@ function Analysis() {
       // });
     } catch (error) {
       setErrorMessage("Error processing the file: " + error.message);
+    }
+    finally{
+      setIsLoading(false);
     }
   };
 
@@ -310,9 +318,13 @@ function Analysis() {
         fileName,
         totalProfanityCounts,
         file,
+        totalMatchedProfanityObject
       },
     });
   };
+
+  console.log("inside Analysis", totalMatchedProfanityObject);
+  
 
   return (
     <div className="App">
